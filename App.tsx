@@ -110,7 +110,6 @@ interface GridCellProps {
 const GridCell: React.FC<GridCellProps> = ({ value, isStart, isEnd, isPath, isVisited, isBrokenWall, isBusy: isAnimating, onClick }) => {
     const getBgColor = () => {
         if (isStart) return 'bg-yellow-300';
-        if (isEnd) return 'bg-green-500';
 
         // This cell is the designated broken wall AND the path animation has reached it.
         if (isBrokenWall && isPath) {
@@ -148,6 +147,7 @@ const GridCell: React.FC<GridCellProps> = ({ value, isStart, isEnd, isPath, isVi
             style={{ aspectRatio: '1 / 1' }}
         >
             {isStart && <span className="text-2xl">⭐</span>}
+            {isEnd && <span className="text-2xl">💎</span>}
         </button>
     );
 };
