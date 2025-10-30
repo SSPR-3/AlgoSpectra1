@@ -102,42 +102,41 @@ interface GridCellProps {
     isEnd: boolean;
     isPath: boolean;
     isVisited: boolean;
-    isBrokenWallInPath: boolean;
+    isBrokenWall: boolean;
     isBusy: boolean;
     onClick: () => void;
 }
 
-const GridCell: React.FC<GridCellProps> = React.memo(({ value, isStart, isEnd, isPath, isVisited, isBrokenWallInPath, isBusy: isAnimating, onClick }) => {
-    const WALL_IMAGE_URL = 'Branch_image.png';
-    const BROKEN_WALL_IMAGE_URL = 'Branch_broken.png';
+const GridCell: React.FC<GridCellProps> = ({ value, isStart, isEnd, isPath, isVisited, isBrokenWall, isBusy: isAnimating, onClick }) => {
+    const getBgColor = () => {
+        if (isStart) return 'bg-yellow-300';
+        if (isEnd) return 'bg-green-500';
 
-    const cellStyle: React.CSSProperties = { aspectRatio: '1 / 1' };
-    let bgColorClass = 'bg-emerald-100/50';
-
-    const imageCellStyle = {
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        // This cell is the designated broken wall AND the path animation has reached it.
+        if (isBrokenWall && isPath) {
+            return 'bg-red-500 animate-pulse';
+        }
+        
+        // This is a regular path cell.
+        if (isPath) {
+            return 'bg-amber-400';
+        }
+        
+        // This is a wall that is not on the path (or the broken wall before the path reaches it).
+        if (value === 1) {
+            return 'bg-stone-700';
+        }
+        
+        if (isVisited) {
+            return 'bg-cyan-300/70';
+        }
+        
+        return 'bg-emerald-100/50';
     };
 
-    if (isStart || isEnd) {
-        bgColorClass = 'bg-yellow-300';
-    } else if (isBrokenWallInPath) {
-        bgColorClass = ''; // No background color, just the image.
-        cellStyle.backgroundImage = `url(${BROKEN_WALL_IMAGE_URL})`;
-        Object.assign(cellStyle, imageCellStyle);
-    } else if (isPath) {
-        bgColorClass = 'bg-amber-400';
-    } else if (isVisited) {
-        bgColorClass = 'bg-cyan-300/70';
-    } else if (value === 1) {
-        bgColorClass = ''; // No background color, just the image.
-        cellStyle.backgroundImage = `url(${WALL_IMAGE_URL})`;
-        Object.assign(cellStyle, imageCellStyle);
-    }
-
     const getTransition = () => {
-        if (isPath || isBrokenWallInPath) return 'transition-all duration-300 delay-150';
-        if (isVisited) return 'transition-all duration-300';
+        if (isPath) return 'transition-colors duration-300 delay-150';
+        if (isVisited) return 'transition-colors duration-300';
         return '';
     };
 
@@ -145,14 +144,13 @@ const GridCell: React.FC<GridCellProps> = React.memo(({ value, isStart, isEnd, i
         <button
             onClick={onClick}
             disabled={isAnimating || isStart || isEnd}
-            className={`w-full h-full flex items-center justify-center border border-emerald-200/50 rounded-sm ${bgColorClass} ${getTransition()}`}
-            style={cellStyle}
+            className={`w-full h-full flex items-center justify-center border border-emerald-200/50 rounded-sm ${getBgColor()} ${getTransition()}`}
+            style={{ aspectRatio: '1 / 1' }}
         >
-            {isStart && <img src="https://i.imgur.com/O6fmT2I.png" alt="Elara" className="w-5/6 h-5/6 object-contain" />}
-            {isEnd && !isStart && <span className="text-2xl">⭐</span>}
+            {isStart && <span className="text-2xl">⭐</span>}
         </button>
     );
-});
+};
 
 export default function App() {
     const [rows, setRows] = useState(DEFAULT_ROWS);
@@ -163,11 +161,11 @@ export default function App() {
     const [isCalculating, setIsCalculating] = useState(false);
     const [statusMessage, setStatusMessage] = useState("Click on a button to find the path!");
     const [stepCount, setStepCount] = useState<number | null>(null);
+    const [brokenWallCell, setBrokenWallCell] = useState<Path[0] | null>(null);
 
     // State for step-by-step animation
     const [fullVisitedOrder, setFullVisitedOrder] = useState<Path>([]);
     const [fullPath, setFullPath] = useState<Path>([]);
-    const [brokenWall, setBrokenWall] = useState<[number, number] | null>(null);
     const [animationStep, setAnimationStep] = useState(0);
     const [isAutoPlaying, setIsAutoPlaying] = useState(false);
 
@@ -216,10 +214,10 @@ export default function App() {
         setVisitedCells([]);
         setFullVisitedOrder([]);
         setFullPath([]);
-        setBrokenWall(null);
         setAnimationStep(0);
         setIsAutoPlaying(false);
         setStepCount(null);
+        setBrokenWallCell(null);
     };
 
     const handleGenerateGrid = useCallback(() => {
@@ -241,7 +239,7 @@ export default function App() {
         
         resetAnimationState();
         setIsCalculating(true);
-        setStatusMessage("Elara is thinking... Let's go!");
+        setStatusMessage("Elara is charting a course...");
 
         // Yield to the browser to update the UI before heavy computation
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -253,18 +251,16 @@ export default function App() {
         setFullPath(result.path);
 
         if (result.path.length > 0) {
+            if (canBreakWall) {
+                const brokenWall = result.path.find(([r, c]) => grid[r][c] === 1);
+                setBrokenWallCell(brokenWall || null);
+            }
             const steps = result.path.length - 1;
             setStepCount(steps);
             setStatusMessage(`We did it! Path found in ${steps} steps!`);
-             if (canBreakWall) {
-                const wallInPath = result.path.find(([r, c]) => grid[r][c] === 1);
-                if (wallInPath) {
-                    setBrokenWall(wallInPath as [number, number]);
-                }
-            }
             setIsAutoPlaying(true); // Start playing automatically
         } else {
-            setStatusMessage("Oh, no! The path is blocked! NO PATH EXISTS.");
+            setStatusMessage("Oh, no! The path is blocked by ancient magic! NO PATH EXISTS.");
             setStepCount(null);
             // Still show the visited cells for failed attempts
             setIsAutoPlaying(true);
@@ -294,17 +290,17 @@ export default function App() {
     const visitedSet = useMemo(() => new Set(visitedCells.map(([r, c]) => `${r},${c}`)), [visitedCells]);
 
     return (
-        <div className="min-h-screen bg-cover bg-center p-4 sm:p-6 lg:p-8" style={{backgroundImage: "url('https://images.unsplash.com/photo-1558223539-a7a245640149?q=80&w=1920&auto=format&fit=crop')"}}>
+        <div className="min-h-screen bg-cover bg-center p-4 sm:p-6 lg:p-8" style={{backgroundImage: "url('https://images.pexels.com/photos/3274903/pexels-photo-3274903.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2')"}}>
             <div className="bg-white/30 backdrop-blur-md p-4 rounded-2xl shadow-xl">
                 <header className="text-center mb-6">
-                    <h1 className="text-4xl md:text-5xl font-bold text-purple-800 tracking-tight" style={{textShadow: '2px 2px 4px rgba(0,0,0,0.2)'}}>
+                    <h1 className="text-4xl md:text-5xl font-bold text-green-900 tracking-tight" style={{textShadow: '2px 2px 4px rgba(0,0,0,0.2)'}}>
                         Elara's Maze Adventure
                     </h1>
-                    <p className="text-purple-700 mt-2 text-lg">{statusMessage}</p>
+                    <p className="text-green-800 mt-2 text-lg">{statusMessage}</p>
                     {stepCount !== null && (
                         <div className="mt-4 p-3 bg-white/50 rounded-lg inline-block shadow-md border border-emerald-200">
                             <p className="text-xl font-bold text-emerald-800">
-                                Path Length: <span className="text-2xl text-purple-600 font-extrabold">{stepCount} steps</span>
+                                Path Length: <span className="text-2xl text-green-700 font-extrabold">{stepCount} steps</span>
                             </p>
                         </div>
                     )}
@@ -335,7 +331,7 @@ export default function App() {
                                 row.map((cell, c) => {
                                     const isStart = r === 0 && c === 0;
                                     const isEnd = r === rows - 1 && c === cols - 1;
-                                    const isBrokenWall = brokenWall ? r === brokenWall[0] && c === brokenWall[1] : false;
+                                    const isBroken = !!brokenWallCell && brokenWallCell[0] === r && brokenWallCell[1] === c;
                                     return (
                                         <GridCell
                                             key={`${r}-${c}`}
@@ -344,7 +340,7 @@ export default function App() {
                                             isEnd={isEnd}
                                             isPath={pathSet.has(`${r},${c}`)}
                                             isVisited={visitedSet.has(`${r},${c}`)}
-                                            isBrokenWallInPath={isBrokenWall && pathSet.has(`${r},${c}`)}
+                                            isBrokenWall={isBroken}
                                             isBusy={isBusy}
                                             onClick={() => handleCellClick(r, c)}
                                         />
@@ -355,7 +351,7 @@ export default function App() {
                     </div>
                 </div>
                  <footer className="text-center mt-8 text-sm text-white/80 font-semibold">
-                    <p>Built with React, TypeScript, and Tailwind CSS. Happy Adventuring!</p>
+                    <p>Built with React, TypeScript, and Tailwind CSS. Let the adventure begin!</p>
                 </footer>
             </div>
         </div>
