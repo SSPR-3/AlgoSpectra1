@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Elara's Maze Adventure - BFS Pathfinding",
+  "description": "A web application that visualizes the Breadth-First Search (BFS) algorithm to find the shortest path in a grid. Help Elara the Explorer find her way through a maze, with an option to break one wall using a special boon.",
+  "requestFramePermissions": []
+}
